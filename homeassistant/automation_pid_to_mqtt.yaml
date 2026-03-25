@@ -1,0 +1,12 @@
+alias: Rack Fan PID to MQTT
+trigger:
+  - platform: state
+    entity_id: input_number.rack_fan_speed
+condition: []
+action:
+  - service: mqtt.publish
+    data:
+      topic: rack/fan/speed
+      retain: true
+      payload: "{{ states('input_number.rack_fan_speed') | int }}"
+mode: single

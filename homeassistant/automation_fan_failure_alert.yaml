@@ -1,0 +1,14 @@
+alias: Rack Fan Failure Alert
+trigger:
+  - platform: numeric_state
+    entity_id: sensor.rack_fan_rpm
+    below: 100
+    for: '00:01:00'
+condition:
+  - condition: numeric_state
+    entity_id: input_number.rack_fan_speed
+    above: 20
+action:
+  - service: notify.mobile_app_YOUR_PHONE
+    data:
+      message: 'Rack fan RPM dropped below 100 while speed > 20%'

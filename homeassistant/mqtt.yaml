@@ -1,0 +1,13 @@
+# Add to configuration.yaml under the mqtt: key
+mqtt:
+  sensor:
+    - name: 'Rack Fan RPM'
+      state_topic: 'rack/fan/rpm'
+      unit_of_measurement: 'RPM'
+  number:
+    - name: 'Rack Fan Speed'
+      command_topic: 'rack/fan/speed'
+      min: 0
+      max: 100
+      step: 5
+      retain: true  # fan resumes last speed on Pi reboot

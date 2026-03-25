@@ -163,38 +163,59 @@ If using the optional tach output (GPIO24), the scope can verify the fan is gene
 - **Shape:** open-collector output pulled up to 3.3V by the Pi's internal pull-up. Signal swings from ~0V to ~3.3V.
 - **If no pulses:** check the fan pin 3 wiring, verify the pull-up is enabled (`pi.set_pull_up_down(TACH_GPIO, pigpio.PUD_UP)`), and confirm the fan is actually spinning.
 
-## 4. MQTT Message Debugging
+## 4. Host-Side MQTT Debug Client
 
-### Subscribe to All Project Topics
+`tools/mqtt_debug.py` is a workstation-side debug client that reads credentials from `pi/config.yaml` — no hardcoded IPs, no remembering `mosquitto_pub` flags.
+
+### Prerequisites (workstation)
 
 ```bash
+pip install paho-mqtt pyyaml
+```
+
+### Commands
+
+```bash
+# Monitor all rack/fan topics in real time (Ctrl+C to quit)
+python tools/mqtt_debug.py monitor
+
+# Set fan speed to 50%
+python tools/mqtt_debug.py speed 50
+
+# Sweep 0→100% in steps of 10, 3 seconds between steps
+python tools/mqtt_debug.py sweep --min 0 --max 100 --step 10 --delay 3
+
+# Sweep up then back down (useful with scope or LED)
+python tools/mqtt_debug.py sweep --bounce
+
+# Read the current retained speed value
+python tools/mqtt_debug.py retained
+
+# Clear a stale retained message
+python tools/mqtt_debug.py clear
+```
+
+The `sweep --bounce` command paired with the LED simulator or a scope is the fastest way to verify the full MQTT → Pi → PWM pipeline end to end.
+
+### Raw mosquitto Commands
+
+If you prefer `mosquitto_pub`/`mosquitto_sub` directly (e.g., on a machine without Python):
+
+```bash
+# Subscribe to all project topics
 mosquitto_sub -h YOUR_HA_IP -u YOUR_MQTT_USER -P YOUR_MQTT_PASS \
   -t 'rack/fan/#' -v
-```
 
-This shows both directions — speed commands going in, RPM telemetry coming out:
-
-```
-rack/fan/speed 65
-rack/fan/rpm 1120
-```
-
-### Publish a Test Speed
-
-```bash
+# Publish a test speed
 mosquitto_pub -h YOUR_HA_IP -u YOUR_MQTT_USER -P YOUR_MQTT_PASS \
   -t rack/fan/speed -m 50
-```
 
-### Check Retained Messages
-
-```bash
-# Subscribe and immediately see the last retained value
+# Read the current retained value and exit
 mosquitto_sub -h YOUR_HA_IP -u YOUR_MQTT_USER -P YOUR_MQTT_PASS \
   -t rack/fan/speed -C 1
 ```
 
-If the fan starts at an unexpected speed on reboot, a stale retained message is the likely cause.
+If the fan starts at an unexpected speed on reboot, a stale retained message is the likely cause. Use `mqtt_debug.py clear` or publish an empty retained message to reset it.
 
 ## 5. pigpio Diagnostics
 

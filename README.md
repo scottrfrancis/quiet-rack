@@ -76,6 +76,8 @@ quiet-rack/
 │   ├── mqtt.yaml                              # MQTT sensor + number entity
 │   ├── automation_pid_to_mqtt.yaml            # PID output → MQTT bridge
 │   └── automation_fan_failure_alert.yaml      # RPM watchdog alert
+├── tools/                                     # Workstation-side utilities
+│   └── mqtt_debug.py                          # MQTT debug client (monitor, speed, sweep)
 ├── rack_fan_guide_1.md                        # Full design document
 └── rack_fan_guide_1.docx                      # Original (Word)
 ```

@@ -1,7 +1,11 @@
-"""Shared fixtures and test configuration for the rack fan controller test suite."""
+"""Shared fixtures and test configuration for the rack fan controller test suite.
+
+Broker connection details come from pi/config.yaml (the single source of truth).
+Tests only override the topics to a test namespace so they never affect the live fan.
+If pi/config.yaml doesn't exist, broker-dependent tests skip automatically.
+"""
 
 import copy
-import os
 import pathlib
 import socket
 import sys
@@ -13,27 +17,46 @@ import yaml
 # Ensure pi/ is importable
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "pi"))
 
-TEST_CONFIG_PATH = pathlib.Path(__file__).parent / "config_test.yaml"
+SITE_CONFIG_PATH = pathlib.Path(__file__).parent.parent / "pi" / "config.yaml"
+
+# Test topic namespace — never collides with live topics
+TEST_TOPICS = {
+    "speed": "rack/fan/test/speed",
+    "rpm": "rack/fan/test/rpm",
+}
 
 
 def _load_test_config():
-    """Load test config, applying environment variable overrides."""
-    with open(TEST_CONFIG_PATH) as f:
+    """Load pi/config.yaml and swap topics to the test namespace.
+
+    Returns None if pi/config.yaml doesn't exist (no broker tests possible).
+    """
+    if not SITE_CONFIG_PATH.exists():
+        return None
+
+    with open(SITE_CONFIG_PATH) as f:
         cfg = yaml.safe_load(f)
 
-    # Allow env var overrides for broker connection
-    cfg["mqtt"]["host"] = os.environ.get("MQTT_TEST_HOST", cfg["mqtt"]["host"])
-    cfg["mqtt"]["port"] = int(os.environ.get("MQTT_TEST_PORT", cfg["mqtt"]["port"]))
-    cfg["mqtt"]["user"] = os.environ.get("MQTT_TEST_USER", cfg["mqtt"]["user"])
-    cfg["mqtt"]["password"] = os.environ.get("MQTT_TEST_PASS", cfg["mqtt"]["password"])
+    # Override topics — everything else (host, port, credentials, gpio, pwm) comes
+    # from the single config file.
+    cfg["topics"] = copy.deepcopy(TEST_TOPICS)
+
+    # Shorten tach interval for faster test cycles
+    cfg.setdefault("tach", {})["interval"] = 1
 
     return cfg
 
 
 @pytest.fixture
 def test_config():
-    """Return a deep copy of the test configuration."""
-    return copy.deepcopy(_load_test_config())
+    """Return a deep copy of the test configuration.
+
+    Skips if pi/config.yaml is missing (broker tests can't run without credentials).
+    """
+    cfg = _load_test_config()
+    if cfg is None:
+        pytest.skip("pi/config.yaml not found — copy config.example.yaml and fill in values")
+    return copy.deepcopy(cfg)
 
 
 @pytest.fixture

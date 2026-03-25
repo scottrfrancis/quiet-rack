@@ -190,7 +190,17 @@ Running the PID controller in Home Assistant rather than on the Pi Zero W has se
 1. Flash Raspberry Pi OS Lite (32-bit) to the Samsung Endurance SD card using Pi Imager
 2. In Pi Imager Advanced Settings: enable SSH, set hostname (e.g. `rack-fan`), set WiFi credentials
 3. Boot, SSH in, run: `sudo apt update && sudo apt upgrade -y`
-4. Set up read-only filesystem (optional but recommended for garage environment — see Section 7.4)
+4. Set up passwordless SSH from your workstation (enables unattended deploys):
+
+   ```bash
+   # On your workstation — generate a key if you don't have one
+   ssh-keygen -t ed25519 -C "rack-fan"
+
+   # Copy it to the Pi (prompts for password one last time)
+   ssh-copy-id pi@rack-fan
+   ```
+
+5. Set up read-only filesystem (optional but recommended for garage environment — see Section 7.4)
 
 ### 7.2 Install Dependencies
 

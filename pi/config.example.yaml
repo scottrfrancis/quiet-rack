@@ -25,3 +25,20 @@ pwm:
 
 tach:
   interval: 10             # seconds between RPM reports
+
+# PID tuning — see docs/pid_tuning.md for methodology.
+# Thresholds derived from vault temp history and bang-bang setpoints.
+#
+# Zone map:  <LoLo=OFF | LoLo–LO=idle | LO–HI=ramp | HI+=full | HiHi+=backup fan
+pid:
+  setpoint: 115.0          # °F — PID target; fan at idle here
+  hi: 130.0                # °F — new fan at 100%
+  lo: 115.0                # °F — new fan at idle
+  lolo: 105.0              # °F — fan OFF below this
+  hihi: 135.0              # °F — old bang-bang AC fan backup threshold
+  kp: 6.7                  # proportional: 100/(HI-LO)
+  ki: 0.02                 # integral: gentle for wide band
+  kd: 0.5                  # derivative: light damping
+  output_min: 0            # PID can output 0; lolo cutoff handles off
+  output_max: 100          # full speed ceiling
+  sample_time: 30          # seconds between PID updates

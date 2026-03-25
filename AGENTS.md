@@ -50,6 +50,25 @@ Single-fan PID controller for a 12U rack cabinet. Pi Zero W acts as a dumb MQTT-
 
 Use [Conventional Commits](https://www.conventionalcommits.org/). Prefix: `feat:`, `fix:`, `docs:`, `chore:`.
 
+## Deployment Model
+
+Code is developed on the workstation and deployed to the Pi Zero W over SSH/SCP. The Pi hostname is `rack-fan` (configurable in Pi Imager). Typical workflow:
+
+```bash
+# Copy updated files to the Pi
+scp pi/fan_controller.py pi/config.yaml pi@rack-fan:/home/pi/
+
+# Restart the service after changes
+ssh pi@rack-fan 'sudo systemctl restart fan-controller'
+
+# Tail logs
+ssh pi@rack-fan 'journalctl -u fan-controller -f'
+```
+
+- The Pi is headless — no monitor, no keyboard. All interaction is over SSH.
+- The systemd unit (`fan-controller.service`) is deployed once; code updates only need the `.py` and `.yaml` files copied.
+- If asked to "deploy" or "install" something on the Pi, generate the `scp`/`ssh` commands — do not assume local execution on the Pi.
+
 ## What Not To Do
 
 - Do not add a web UI, REST API, or local dashboard — HA is the UI

@@ -1,19 +1,38 @@
 #!/usr/bin/env python3
 """Rack fan PWM controller — MQTT subscriber that drives an Arctic P12 via pigpio."""
 
+import pathlib
+import sys
+
+import yaml
 import pigpio
 import paho.mqtt.client as mqtt
 import time
 
-MQTT_HOST = 'YOUR_HA_IP'       # e.g. 192.168.1.100
-MQTT_USER = 'YOUR_MQTT_USER'
-MQTT_PASS = 'YOUR_MQTT_PASSWORD'
-SPEED_TOPIC = 'rack/fan/speed'  # HA publishes here
-RPM_TOPIC = 'rack/fan/rpm'      # Pi publishes here
-PWM_GPIO = 18                   # hardware PWM pin
-TACH_GPIO = 24                  # tach input (optional)
-PWM_FREQ = 25000                # 25kHz per 4-pin fan spec
+# --- config ---
+CONFIG_PATH = pathlib.Path(__file__).parent / "config.yaml"
+EXAMPLE_PATH = CONFIG_PATH.with_name("config.example.yaml")
 
+if not CONFIG_PATH.exists():
+    print(f"ERROR: {CONFIG_PATH} not found.", file=sys.stderr)
+    print(f"Copy {EXAMPLE_PATH.name} to {CONFIG_PATH.name} and fill in your values.", file=sys.stderr)
+    sys.exit(1)
+
+with open(CONFIG_PATH) as f:
+    cfg = yaml.safe_load(f)
+
+MQTT_HOST = cfg["mqtt"]["host"]
+MQTT_PORT = cfg["mqtt"].get("port", 1883)
+MQTT_USER = cfg["mqtt"]["user"]
+MQTT_PASS = cfg["mqtt"]["password"]
+SPEED_TOPIC = cfg["topics"]["speed"]
+RPM_TOPIC = cfg["topics"]["rpm"]
+PWM_GPIO = cfg["gpio"]["pwm"]
+TACH_GPIO = cfg["gpio"].get("tach")      # None disables tach
+PWM_FREQ = cfg["pwm"]["frequency"]
+TACH_INTERVAL = cfg.get("tach", {}).get("interval", 10)
+
+# --- pigpio setup ---
 pi = pigpio.pi()
 pi.set_mode(PWM_GPIO, pigpio.OUTPUT)
 pi.hardware_PWM(PWM_GPIO, PWM_FREQ, 0)  # start stopped
@@ -21,23 +40,27 @@ pi.hardware_PWM(PWM_GPIO, PWM_FREQ, 0)  # start stopped
 # --- tach (optional) ---
 pulse_count = 0
 
-def tach_pulse(gpio, level, tick):
-    global pulse_count
-    pulse_count += 1
+if TACH_GPIO is not None:
+    def tach_pulse(gpio, level, tick):
+        global pulse_count
+        pulse_count += 1
 
-pi.set_mode(TACH_GPIO, pigpio.INPUT)
-pi.set_pull_up_down(TACH_GPIO, pigpio.PUD_UP)
-pi.callback(TACH_GPIO, pigpio.FALLING_EDGE, tach_pulse)
+    pi.set_mode(TACH_GPIO, pigpio.INPUT)
+    pi.set_pull_up_down(TACH_GPIO, pigpio.PUD_UP)
+    pi.callback(TACH_GPIO, pigpio.FALLING_EDGE, tach_pulse)
+
 
 def set_fan_speed(percent):
     pct = max(0, min(100, int(percent)))
     duty = pct * 10000  # pigpio: 0-1,000,000
     pi.hardware_PWM(PWM_GPIO, PWM_FREQ, duty)
-    print(f'Fan speed: {pct}%')
+    print(f"Fan speed: {pct}%")
+
 
 def on_connect(client, userdata, flags, rc):
-    print('MQTT connected, rc=', rc)
+    print("MQTT connected, rc=", rc)
     client.subscribe(SPEED_TOPIC)
+
 
 def on_message(client, userdata, msg):
     try:
@@ -45,16 +68,18 @@ def on_message(client, userdata, msg):
     except ValueError:
         pass
 
+
 client = mqtt.Client()
 client.username_pw_set(MQTT_USER, MQTT_PASS)
 client.on_connect = on_connect
 client.on_message = on_message
-client.connect(MQTT_HOST, 1883)
+client.connect(MQTT_HOST, MQTT_PORT)
 client.loop_start()
 
-# Publish RPM every 10 seconds
+# Publish RPM every interval
 while True:
-    time.sleep(10)
-    rpm = (pulse_count / 2) * 6  # 2 pulses/rev, 10s window
-    pulse_count = 0
-    client.publish(RPM_TOPIC, round(rpm))
+    time.sleep(TACH_INTERVAL)
+    if TACH_GPIO is not None:
+        rpm = (pulse_count / 2) * (60 / TACH_INTERVAL)  # 2 pulses/rev
+        pulse_count = 0
+        client.publish(RPM_TOPIC, round(rpm))

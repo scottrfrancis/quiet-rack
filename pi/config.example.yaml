@@ -1,0 +1,22 @@
+# Copy to config.yaml and fill in your values.
+# config.yaml is gitignored — credentials stay local.
+
+mqtt:
+  host: 192.168.1.100
+  port: 1883
+  user: mqtt_user
+  password: mqtt_password
+
+topics:
+  speed: rack/fan/speed    # HA publishes target speed here
+  rpm: rack/fan/rpm        # Pi publishes measured RPM here
+
+gpio:
+  pwm: 18                  # hardware PWM pin (GPIO18)
+  tach: 24                 # tach input pin (GPIO24), set null to disable
+
+pwm:
+  frequency: 25000         # 25kHz per 4-pin fan spec
+
+tach:
+  interval: 10             # seconds between RPM reports

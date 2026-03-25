@@ -1,3 +1,4 @@
+# Site-specific: replace YOUR_PHONE with your mobile_app device name
 alias: Rack Fan Failure Alert
 trigger:
   - platform: numeric_state

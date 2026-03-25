@@ -1,4 +1,6 @@
-# Site-specific: replace YOUR_PHONE with your mobile_app device name
+# Site-specific values — get from pi/config.yaml:
+#   fan_speed entity  → homeassistant.fan_speed_entity
+#   notify service    → replace YOUR_PHONE with your mobile_app device name
 alias: Rack Fan Failure Alert
 trigger:
   - platform: numeric_state

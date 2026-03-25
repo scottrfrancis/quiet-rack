@@ -10,7 +10,7 @@ Scott Francis · March 2026
 
 A 12U wall-mount network cabinet in the garage came with a noisy 120mm AC-powered muffin fan. The goal: replace it with a quiet, smart fan that is temperature-controlled with a real PID loop — not a simple on/off relay or a lookup table.
 
-The result is an end-to-end IoT system: a 12V DC PWM fan, a Raspberry Pi Zero W running pigpio and a Python MQTT bridge, and a Home Assistant PID controller that feeds the NAS temperature sensor directly into the control loop.
+The result is an end-to-end IoT system: a 12V DC PWM fan, a Raspberry Pi Zero W running pigpio and a Python MQTT bridge, and a Home Assistant PID controller that feeds the Vault temperature sensor directly into the control loop.
 
 > **TIP:** This document covers everything: the decision chain, full wiring, all code, Home Assistant configuration, PID tuning, and notes for a blog post. It is meant to be the single reference for this project.
 
@@ -119,7 +119,7 @@ The only non-obvious wiring step is sharing ground between the two supplies. Wit
 The control loop is entirely within Home Assistant. The Pi Zero W is a pure actuator — it receives a speed percentage over MQTT and translates it to a PWM duty cycle. It does not run a PID loop locally.
 
 ```text
-NAS temperature sensor (existing HA entity)
+Vault temperature sensor (existing HA entity)
   │
   ▼
 simple_pid_controller (HACS custom integration)
@@ -150,7 +150,7 @@ rack/fan/rpm → HA sensor.rack_fan_rpm
 
 Running the PID controller in Home Assistant rather than on the Pi Zero W has several advantages:
 
-- The NAS temperature sensor is already an HA entity — no additional sensor hardware needed
+- The Vault temperature sensor is already an HA entity — no additional sensor hardware needed
 - PID tuning is done live in the HA UI — no SSH, no code restarts
 - The P, I, and D terms are visible as HA diagnostic entities for real-time observation
 - If the Pi reboots, the fan resumes its last MQTT-retained speed within seconds of reconnect
@@ -291,7 +291,7 @@ Settings → Devices & Services → Add Integration → Simple PID Controller:
 | Parameter | Value | Notes |
 | --- | --- | --- |
 | Name | Rack Fan PID | |
-| Input sensor | `sensor.nas_temperature` | Your existing NAS temp entity |
+| Input sensor | `sensor.vault_temperature` | See `homeassistant.temperature_entity` in config.yaml |
 | Output entity | `input_number.rack_fan_speed` | The helper created above |
 | Setpoint | 35 | Target °C — adjust to taste |
 | Output min | 15 | Never fully stop while PID is active |

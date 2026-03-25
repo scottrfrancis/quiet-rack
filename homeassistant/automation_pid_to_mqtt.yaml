@@ -1,3 +1,6 @@
+# Site-specific values — get from pi/config.yaml:
+#   entity_id  → homeassistant.fan_speed_entity
+#   topic      → topics.speed
 alias: Rack Fan PID to MQTT
 trigger:
   - platform: state

@@ -11,6 +11,11 @@ topics:
   speed: rack/fan/speed    # HA publishes target speed here
   rpm: rack/fan/rpm        # Pi publishes measured RPM here
 
+homeassistant:
+  host: homeassistant.local         # HA instance hostname
+  temperature_entity: sensor.vault_temperature  # PID input sensor
+  fan_speed_entity: input_number.rack_fan_speed  # PID output helper
+
 gpio:
   pwm: 18                  # hardware PWM pin (GPIO18)
   tach: 24                 # tach input pin (GPIO24), set null to disable

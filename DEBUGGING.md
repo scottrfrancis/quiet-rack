@@ -249,7 +249,73 @@ Look for:
 - `Fan speed: XX%` — speed commands being received and applied
 - Python tracebacks — usually pigpiod not running or MQTT auth failure
 
-## 7. Common Debug Scenarios
+## 7. Accessing Home Assistant Config and Data
+
+The HA configuration directory can be mounted on your workstation via the Samba add-on. This gives AI agents (Claude Code, Copilot, Cursor) and local tools direct filesystem access to HA config files and the state history database.
+
+### Samba Mount (recommended for agent workflows)
+
+1. Install the **Samba share** add-on in HA (Settings → Add-ons → Samba share)
+2. Configure a username/password in the add-on config
+3. Mount on macOS:
+
+```bash
+# Mount via Finder: Cmd+K → smb://homeassistant.local/config
+# Or from the terminal:
+mkdir -p /Volumes/config
+mount_smbfs //user:pass@homeassistant.local/config /Volumes/config
+```
+
+Once mounted, agents can:
+
+- Read/edit `configuration.yaml`, `automations.yaml`, `mqtt.yaml`, etc.
+- Query the state history database (`home-assistant_v2.db`) for sensor data
+- Inspect installed integrations and custom components
+
+#### Extracting sensor history (e.g., for PID simulation)
+
+The HA database is SQLite. Since HA holds a write lock, open it in immutable mode:
+
+```bash
+# Find the metadata_id for your sensor
+sqlite3 "file:/Volumes/config/home-assistant_v2.db?mode=ro&immutable=1" \
+  "SELECT metadata_id, entity_id FROM states_meta WHERE entity_id LIKE '%vault%temp%';"
+
+# Export 7 days of temperature history to CSV
+sqlite3 -csv -header "file:/Volumes/config/home-assistant_v2.db?mode=ro&immutable=1" "
+SELECT
+  datetime(last_updated_ts, 'unixepoch', 'localtime') as timestamp,
+  CAST(state AS REAL) as temp_f
+FROM states
+WHERE metadata_id = 2481
+  AND state NOT IN ('unavailable', 'unknown', '')
+  AND last_updated_ts > unixepoch('now', '-7 days')
+ORDER BY last_updated_ts ASC;
+" > tests/fixtures/vault_temp_history.csv
+```
+
+### Alternative: Manual config editing (no Samba)
+
+If Samba is not available, edit HA config through other channels:
+
+- **File editor add-on** — browser-based editor built into HA (Settings → Add-ons → File editor)
+- **SSH add-on** — install the Terminal & SSH add-on, then `ssh root@homeassistant.local`
+- **HA REST API** — query sensor state programmatically:
+
+```bash
+# Get current vault temperature
+curl -s -H "Authorization: Bearer YOUR_LONG_LIVED_TOKEN" \
+  http://homeassistant.local:8123/api/states/sensor.vault_temperature | python3 -m json.tool
+
+# Get history for the last 24 hours
+curl -s -H "Authorization: Bearer YOUR_LONG_LIVED_TOKEN" \
+  "http://homeassistant.local:8123/api/history/period?filter_entity_id=sensor.vault_temperature" \
+  | python3 -m json.tool
+```
+
+Generate a long-lived token at: HA Profile → Security → Long-Lived Access Tokens.
+
+## 8. Common Debug Scenarios
 
 ### "I changed the config but nothing happened"
 

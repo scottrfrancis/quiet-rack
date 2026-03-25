@@ -107,8 +107,11 @@ def mqtt_helper_client(test_config, broker_available):
     """Create a real MQTT client connected to the test broker. Disconnects on teardown."""
     import paho.mqtt.client as mqtt
 
-    client = mqtt.Client()
-    client.username_pw_set(test_config["mqtt"]["user"], test_config["mqtt"]["password"])
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    user = test_config["mqtt"].get("user")
+    password = test_config["mqtt"].get("password")
+    if user:
+        client.username_pw_set(user, password)
     client.connect(test_config["mqtt"]["host"], test_config["mqtt"]["port"])
     client.loop_start()
     yield client

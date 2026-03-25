@@ -21,8 +21,8 @@ class TestMqttConnect:
 
         original_on_connect = on_connect
 
-        def tracking_on_connect(client, userdata, flags, rc):
-            original_on_connect(client, userdata, flags, rc)
+        def tracking_on_connect(client, userdata, flags, reason_code, properties=None):
+            original_on_connect(client, userdata, flags, reason_code, properties)
             connected.set()
 
         client = setup_mqtt(test_config, mock_pi)

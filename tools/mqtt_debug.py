@@ -49,8 +49,11 @@ def load_config(path):
 
 
 def make_client(cfg):
-    client = mqtt.Client()
-    client.username_pw_set(cfg["mqtt"]["user"], cfg["mqtt"]["password"])
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    user = cfg["mqtt"].get("user")
+    password = cfg["mqtt"].get("password")
+    if user:
+        client.username_pw_set(user, password)
     client.connect(cfg["mqtt"]["host"], cfg["mqtt"].get("port", 1883))
     return client
 

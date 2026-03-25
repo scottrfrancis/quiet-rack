@@ -43,9 +43,9 @@ def calc_rpm(pulse_count, interval):
     return (pulse_count / 2) * (60 / interval)
 
 
-def on_connect(client, userdata, flags, rc):
+def on_connect(client, userdata, flags, reason_code, properties=None):
     """MQTT on_connect — subscribe to the speed topic."""
-    print("MQTT connected, rc=", rc)
+    print("MQTT connected, rc=", reason_code)
     client.subscribe(userdata["speed_topic"])
 
 
@@ -106,8 +106,11 @@ def setup_mqtt(cfg, pi_inst):
         "speed_topic": cfg["topics"]["speed"],
     }
 
-    client = mqtt.Client(userdata=userdata)
-    client.username_pw_set(cfg["mqtt"]["user"], cfg["mqtt"]["password"])
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, userdata=userdata)
+    user = cfg["mqtt"].get("user")
+    password = cfg["mqtt"].get("password")
+    if user:
+        client.username_pw_set(user, password)
     client.on_connect = on_connect
     client.on_message = on_message
     client.connect(cfg["mqtt"]["host"], cfg["mqtt"].get("port", 1883))

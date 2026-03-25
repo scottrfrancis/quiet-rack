@@ -8,6 +8,7 @@
 # Python
 __pycache__/
 *.pyc
+.pytest_cache/
 
 # Site-specific config (credentials)
 pi/config.yaml

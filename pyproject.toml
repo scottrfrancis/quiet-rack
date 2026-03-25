@@ -1,0 +1,14 @@
+[project]
+name = "quiet-rack"
+version = "0.1.0"
+description = "PID-controlled PWM fan for a 12U rack cabinet"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "local: Mode 1 — dev host, mock pigpio + mock MQTT (no hardware, no broker)",
+    "remote: Mode 2 — Pi only, real pigpio + mock MQTT (no broker)",
+    "broker: Mode 3 — dev host with broker, mock pigpio + real MQTT",
+    "full: Mode 4 — Pi with broker, real pigpio + real MQTT",
+]

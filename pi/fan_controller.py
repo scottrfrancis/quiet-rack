@@ -3,83 +3,136 @@
 
 import pathlib
 import sys
-
-import yaml
-import pigpio
-import paho.mqtt.client as mqtt
 import time
 
-# --- config ---
-CONFIG_PATH = pathlib.Path(__file__).parent / "config.yaml"
-EXAMPLE_PATH = CONFIG_PATH.with_name("config.example.yaml")
-
-if not CONFIG_PATH.exists():
-    print(f"ERROR: {CONFIG_PATH} not found.", file=sys.stderr)
-    print(f"Copy {EXAMPLE_PATH.name} to {CONFIG_PATH.name} and fill in your values.", file=sys.stderr)
-    sys.exit(1)
-
-with open(CONFIG_PATH) as f:
-    cfg = yaml.safe_load(f)
-
-MQTT_HOST = cfg["mqtt"]["host"]
-MQTT_PORT = cfg["mqtt"].get("port", 1883)
-MQTT_USER = cfg["mqtt"]["user"]
-MQTT_PASS = cfg["mqtt"]["password"]
-SPEED_TOPIC = cfg["topics"]["speed"]
-RPM_TOPIC = cfg["topics"]["rpm"]
-PWM_GPIO = cfg["gpio"]["pwm"]
-TACH_GPIO = cfg["gpio"].get("tach")      # None disables tach
-PWM_FREQ = cfg["pwm"]["frequency"]
-TACH_INTERVAL = cfg.get("tach", {}).get("interval", 10)
-
-# --- pigpio setup ---
-pi = pigpio.pi()
-pi.set_mode(PWM_GPIO, pigpio.OUTPUT)
-pi.hardware_PWM(PWM_GPIO, PWM_FREQ, 0)  # start stopped
-
-# --- tach (optional) ---
-pulse_count = 0
-
-if TACH_GPIO is not None:
-    def tach_pulse(gpio, level, tick):
-        global pulse_count
-        pulse_count += 1
-
-    pi.set_mode(TACH_GPIO, pigpio.INPUT)
-    pi.set_pull_up_down(TACH_GPIO, pigpio.PUD_UP)
-    pi.callback(TACH_GPIO, pigpio.FALLING_EDGE, tach_pulse)
+import yaml
+import paho.mqtt.client as mqtt
 
 
-def set_fan_speed(percent):
+def load_config(path=None):
+    """Load config from YAML file. Returns dict."""
+    if path is None:
+        path = pathlib.Path(__file__).parent / "config.yaml"
+    else:
+        path = pathlib.Path(path)
+
+    if not path.exists():
+        example = path.with_name("config.example.yaml")
+        print(f"ERROR: {path} not found.", file=sys.stderr)
+        print(f"Copy {example.name} to {path.name} and fill in your values.", file=sys.stderr)
+        sys.exit(1)
+
+    with open(path) as f:
+        return yaml.safe_load(f)
+
+
+def set_fan_speed(pi_inst, pwm_gpio, pwm_freq, percent):
+    """Clamp percent to 0–100, set hardware PWM duty cycle. Returns clamped value."""
     pct = max(0, min(100, int(percent)))
-    duty = pct * 10000  # pigpio: 0-1,000,000
-    pi.hardware_PWM(PWM_GPIO, PWM_FREQ, duty)
+    duty = pct * 10000  # pigpio: 0–1,000,000
+    pi_inst.hardware_PWM(pwm_gpio, pwm_freq, duty)
     print(f"Fan speed: {pct}%")
+    return pct
+
+
+def calc_rpm(pulse_count, interval):
+    """Calculate RPM from tach pulse count over a time interval.
+
+    Most 4-pin fans produce 2 pulses per revolution.
+    """
+    return (pulse_count / 2) * (60 / interval)
 
 
 def on_connect(client, userdata, flags, rc):
+    """MQTT on_connect — subscribe to the speed topic."""
     print("MQTT connected, rc=", rc)
-    client.subscribe(SPEED_TOPIC)
+    client.subscribe(userdata["speed_topic"])
 
 
 def on_message(client, userdata, msg):
+    """MQTT on_message — parse speed percentage and apply it."""
     try:
-        set_fan_speed(float(msg.payload.decode()))
+        set_fan_speed(
+            userdata["pi_inst"],
+            userdata["pwm_gpio"],
+            userdata["pwm_freq"],
+            float(msg.payload.decode()),
+        )
     except ValueError:
         pass
 
 
-client = mqtt.Client()
-client.username_pw_set(MQTT_USER, MQTT_PASS)
-client.on_connect = on_connect
-client.on_message = on_message
-client.connect(MQTT_HOST, MQTT_PORT)
-client.loop_start()
+def setup_pigpio(cfg):
+    """Connect to pigpiod, configure PWM output and optional tach input.
 
-# Publish RPM every interval
-while True:
-    time.sleep(TACH_INTERVAL)
-    if TACH_GPIO is not None:
-        rpm = (pulse_count / 2) * (60 / TACH_INTERVAL)  # 2 pulses/rev
-        pulse_count = 0
-        client.publish(RPM_TOPIC, round(rpm))
+    Returns (pi_inst, tach_state) where tach_state is a dict with
+    'pulse_count' key (mutable list used as counter), or None if tach disabled.
+    """
+    import pigpio
+
+    pi_inst = pigpio.pi()
+    pwm_gpio = cfg["gpio"]["pwm"]
+    pwm_freq = cfg["pwm"]["frequency"]
+
+    pi_inst.set_mode(pwm_gpio, pigpio.OUTPUT)
+    pi_inst.hardware_PWM(pwm_gpio, pwm_freq, 0)  # start stopped
+
+    tach_gpio = cfg["gpio"].get("tach")
+    tach_state = None
+
+    if tach_gpio is not None:
+        # Use a mutable list as a counter so the callback can increment it
+        tach_state = {"pulse_count": [0]}
+
+        def tach_pulse(gpio, level, tick):
+            tach_state["pulse_count"][0] += 1
+
+        pi_inst.set_mode(tach_gpio, pigpio.INPUT)
+        pi_inst.set_pull_up_down(tach_gpio, pigpio.PUD_UP)
+        pi_inst.callback(tach_gpio, pigpio.FALLING_EDGE, tach_pulse)
+
+    return pi_inst, tach_state
+
+
+def setup_mqtt(cfg, pi_inst):
+    """Create MQTT client, set callbacks, connect. Returns client.
+
+    The pi_inst and config values are passed to callbacks via userdata.
+    """
+    userdata = {
+        "pi_inst": pi_inst,
+        "pwm_gpio": cfg["gpio"]["pwm"],
+        "pwm_freq": cfg["pwm"]["frequency"],
+        "speed_topic": cfg["topics"]["speed"],
+    }
+
+    client = mqtt.Client(userdata=userdata)
+    client.username_pw_set(cfg["mqtt"]["user"], cfg["mqtt"]["password"])
+    client.on_connect = on_connect
+    client.on_message = on_message
+    client.connect(cfg["mqtt"]["host"], cfg["mqtt"].get("port", 1883))
+    return client
+
+
+def run_loop(client, cfg, tach_state):
+    """Main loop: publish RPM every tach interval. Blocking."""
+    tach_gpio = cfg["gpio"].get("tach")
+    tach_interval = cfg.get("tach", {}).get("interval", 10)
+    rpm_topic = cfg["topics"]["rpm"]
+
+    client.loop_start()
+
+    while True:
+        time.sleep(tach_interval)
+        if tach_gpio is not None and tach_state is not None:
+            count = tach_state["pulse_count"][0]
+            tach_state["pulse_count"][0] = 0
+            rpm = calc_rpm(count, tach_interval)
+            client.publish(rpm_topic, round(rpm))
+
+
+if __name__ == "__main__":
+    cfg = load_config()
+    pi_inst, tach_state = setup_pigpio(cfg)
+    client = setup_mqtt(cfg, pi_inst)
+    run_loop(client, cfg, tach_state)

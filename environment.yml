@@ -1,0 +1,15 @@
+# Conda environment for quiet-rack development (workstation side).
+# Usage: conda env create -f environment.yml
+#        conda activate quiet-rack
+
+name: quiet-rack
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pyyaml
+  - pip:
+      - paho-mqtt
+      - pytest

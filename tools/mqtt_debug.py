@@ -21,6 +21,9 @@ Usage:
     # Clear retained speed message (resets to no retained value)
     python tools/mqtt_debug.py clear
 
+    # Use test topics (rack/fan/test/speed, rack/fan/test/rpm)
+    python tools/mqtt_debug.py --test monitor
+
     # Use a different config file
     python tools/mqtt_debug.py --config /path/to/config.yaml monitor
 """
@@ -157,6 +160,10 @@ def main():
         "--config", type=pathlib.Path, default=DEFAULT_CONFIG,
         help=f"Path to config.yaml (default: {DEFAULT_CONFIG})"
     )
+    parser.add_argument(
+        "--test", action="store_true",
+        help="Use test topic namespace (rack/fan/test/*) instead of live topics"
+    )
 
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -177,6 +184,16 @@ def main():
 
     args = parser.parse_args()
     cfg = load_config(args.config)
+
+    if args.test:
+        for key in ("speed", "rpm"):
+            topic = cfg["topics"][key]
+            # Insert /test/ before the leaf: rack/fan/speed → rack/fan/test/speed
+            parts = topic.rsplit("/", 1)
+            cfg["topics"][key] = f"{parts[0]}/test/{parts[1]}"
+        print(f"[test mode] speed: {cfg['topics']['speed']}")
+        print(f"[test mode] rpm:   {cfg['topics']['rpm']}")
+        print()
 
     commands = {
         "monitor": cmd_monitor,

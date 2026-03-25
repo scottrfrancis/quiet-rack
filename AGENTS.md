@@ -69,6 +69,21 @@ ssh pi@rack-fan 'journalctl -u fan-controller -f'
 - The systemd unit (`fan-controller.service`) is deployed once; code updates only need the `.py` and `.yaml` files copied.
 - If asked to "deploy" or "install" something on the Pi, generate the `scp`/`ssh` commands — do not assume local execution on the Pi.
 
+## Home Assistant Access
+
+HA config is accessible via three channels. Connection details are in `pi/config.yaml` under `homeassistant:`.
+
+| Method | How | Use for |
+| --- | --- | --- |
+| **Samba** | Mount at `/Volumes/config` | Edit YAML config, read SQLite history DB |
+| **SSH** | `ssh hassio@homeassistant.local` | Edit config, restart HA, tail logs |
+| **REST API** | `curl` with long-lived token | Query/set entity state, create helpers |
+
+- Config files live at `/config/` on the HA filesystem (both Samba and SSH)
+- The SQLite DB (`home-assistant_v2.db`) must be opened with `?mode=ro&immutable=1` to bypass HA's write lock
+- The `ha` CLI on the SSH session requires an API token for most commands
+- HACS integration installs and token generation require the HA browser UI (one-time operations)
+
 ## What Not To Do
 
 - Do not add a web UI, REST API, or local dashboard — HA is the UI

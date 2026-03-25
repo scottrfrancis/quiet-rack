@@ -294,13 +294,49 @@ ORDER BY last_updated_ts ASC;
 " > tests/fixtures/vault_temp_history.csv
 ```
 
-### Alternative: Manual config editing (no Samba)
+### SSH Access (recommended for agent automation)
 
-If Samba is not available, edit HA config through other channels:
+SSH to HA enables AI agents to edit config files, restart HA, and use the REST API — all without the browser UI.
+
+**One-time setup:**
+
+1. Install the **Terminal & SSH** add-on (Settings → Add-ons → Terminal & SSH)
+2. In the add-on config, set the authorized keys (paste your `~/.ssh/id_ed25519.pub`)
+3. Set the username (default: `hassio`), disable password auth
+4. Copy your SSH key: `ssh-copy-id hassio@homeassistant.local`
+5. Add `homeassistant.ssh_user` to `pi/config.yaml`
+
+**What SSH gives agents:**
+
+```bash
+# Edit config files directly
+ssh hassio@homeassistant.local 'cat /config/mqtt.yaml'
+
+# Restart HA after config changes (requires API token)
+ssh hassio@homeassistant.local 'ha core restart'
+
+# Check HA logs
+ssh hassio@homeassistant.local 'ha core logs | tail -50'
+
+# Use the REST API via curl from inside HA
+ssh hassio@homeassistant.local 'curl -s -H "Authorization: Bearer TOKEN" \
+  http://supervisor/core/api/states/sensor.vault_temperature'
+```
+
+> **NOTE:** The `ha` CLI commands (restart, logs, etc.) require a long-lived access token. Generate one at: HA Profile → Security → Long-Lived Access Tokens. Add it to `pi/config.yaml` under `homeassistant.token`.
+
+**What still requires the HA UI:**
+
+- Installing HACS integrations (first time only)
+- Creating the long-lived access token (one-time)
+- Creating input_number helpers (can also be done via REST API with token)
+
+### Alternative: Manual config editing (no SSH or Samba)
+
+If neither SSH nor Samba is available:
 
 - **File editor add-on** — browser-based editor built into HA (Settings → Add-ons → File editor)
-- **SSH add-on** — install the Terminal & SSH add-on, then `ssh root@homeassistant.local`
-- **HA REST API** — query sensor state programmatically:
+- **HA REST API from workstation** — query and modify state programmatically:
 
 ```bash
 # Get current vault temperature
@@ -313,7 +349,16 @@ curl -s -H "Authorization: Bearer YOUR_LONG_LIVED_TOKEN" \
   | python3 -m json.tool
 ```
 
-Generate a long-lived token at: HA Profile → Security → Long-Lived Access Tokens.
+### Access Method Summary
+
+| Method | Config files | State/history | Restart HA | Install integrations |
+| --- | --- | --- | --- | --- |
+| Samba mount | Read/write | SQLite (read-only) | No | No |
+| SSH | Read/write | SQLite + REST API | Yes (with token) | No |
+| REST API | No | Yes | Yes (with token) | No |
+| HA UI | Via File editor | Via dashboard | Yes | Yes |
+
+For full agent autonomy, use **Samba + SSH + API token**. The only manual step is the one-time token generation in the HA UI.
 
 ## 8. Common Debug Scenarios
 

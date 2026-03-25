@@ -13,6 +13,8 @@ topics:
 
 homeassistant:
   host: homeassistant.local         # HA instance hostname
+  ssh_user: hassio                  # SSH user for HA (key-based, no password)
+  # token: YOUR_LONG_LIVED_ACCESS_TOKEN  # for REST API / ha CLI
   temperature_entity: sensor.vault_temperature  # PID input sensor
   fan_speed_entity: input_number.rack_fan_speed  # PID output helper
 

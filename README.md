@@ -86,15 +86,8 @@ Site-specific config (MQTT host, credentials, GPIO pins) lives in `pi/config.yam
 
 ## Documentation
 
-The [design guide](rack_fan_guide_1.md) is the single reference for this project. It covers:
-
-- Hardware selection rationale (fan, controller, power)
-- Complete wiring diagram and pinout
-- Pi OS setup and deployment
-- Home Assistant PID configuration
-- PID tuning procedure for slow thermal systems
-- Troubleshooting table
-- Build checklist
+- [Design guide](rack_fan_guide_1.md) — the single reference: hardware decisions, wiring, Pi setup, HA config, PID tuning, build checklist
+- [Debugging guide](DEBUGGING.md) — bench testing with an LED fan simulator, oscilloscope probing, MQTT and pigpio diagnostics
 
 ## License
 

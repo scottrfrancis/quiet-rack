@@ -106,8 +106,8 @@ The only non-obvious wiring step is sharing ground between the two supplies. Wit
 | 12V 1A wall adapter (barrel jack) | Amazon / drawer | $8 | Powers fan |
 | USB charger (5V) | On hand | $0 | Powers Pi Zero W |
 | Micro-USB cable | On hand | $0 | Pi power |
-| 4-pin PWM fan extension / pigtail | Amazon | $1–2 | Clean termination on fan side |
-| Short jumper wire | On hand | $0 | Ground bond: Pi GND → 12V GND |
+| [ThreeBulls 4-pin PWM fan extension (5-pack)](https://www.amazon.com/dp/B07M5P7VHH) | Amazon | $7 | Cut one to build wiring harness; 4 spares |
+| Spare 12V wall adapter (barrel jack) | On hand | $0 | Cut up for 12V wiring — solder to fan extension |
 | Velcro or dual-lock strips | On hand | $0 | Mounts Pi Zero W inside cabinet top |
 
 **Total new spend: ~$32–34** (fan + case + SD card + 12V adapter). Everything else from existing stock.
@@ -167,7 +167,74 @@ Running the PID controller in Home Assistant rather than on the Pi Zero W has se
 | 3 | Tach (RPM output) | Green | Pi GPIO24 (optional — open circuit if unused) |
 | 4 | PWM input | Blue | Pi GPIO18 |
 
-### 6.2 Wiring Diagram
+### 6.2 Building the Wiring Harness
+
+Rather than soldering directly to the fan leads, build a clean harness using a 4-pin PWM fan extension cable ([ThreeBulls 5-pack, Amazon B07M5P7VHH](https://www.amazon.com/dp/B07M5P7VHH)) and a sacrificial 12V wall adapter.
+
+#### What you need
+
+- 1x ThreeBulls 4-pin PWM fan extension (10.6" braided, from the 5-pack)
+- 1x spare 12V barrel-jack wall adapter (any amperage ≥ 0.5A)
+- Soldering iron, heat shrink tubing, wire strippers
+
+#### Build steps
+
+1. **Cut the fan extension in half.** You want the **female (socket) end** — this plugs into the fan's 4-pin socket. Set the male (plug) half aside as a spare.
+
+2. **Identify the four wires** by color (standard: black=GND, yellow=12V, green=tach, blue=PWM). Verify with a multimeter in continuity mode against the pin positions described in section 6.1.
+
+3. **Cut the barrel jack off the 12V adapter.** Strip the two wires. Identify positive and negative (usually marked on the cable, or center pin = positive). Verify with a multimeter.
+
+4. **Solder the power connections:**
+
+   ```text
+   12V adapter (+) ──── splice to ──── yellow wire (fan pin 2, +12V)
+   12V adapter (−) ──┬─ splice to ──── black wire  (fan pin 1, GND)
+                     │
+   Pi GND (pin 20) ──┘                 ◄── ground bond (short jumper)
+   ```
+
+5. **Terminate the signal wires** for the Pi. Strip and tin the ends, or crimp Dupont female connectors to push onto the Pi header pins:
+
+   ```text
+   blue wire  (fan pin 4, PWM)  ──── Dupont female ──── Pi pin 12 (GPIO18)
+   green wire (fan pin 3, tach) ──── Dupont female ──── Pi pin 18 (GPIO24)
+   ```
+
+6. **Add the ground bond jumper.** A short wire from the 12V adapter GND splice to a Dupont female connector on Pi pin 20 (GND). This is the most critical connection — without it, the PWM signal has no reference.
+
+7. **Heat shrink all solder joints.** Label the Pi-end connectors (PWM, TACH, GND) with small tags or colored heat shrink.
+
+#### Finished harness
+
+```text
+    ┌─────────────────┐
+    │ 12V Wall Adapter │
+    └──┬──────────┬────┘
+       │(+)       │(−)
+       │          │
+  ┌────┴────┐  ┌──┴──────────────────────────┐
+  │ yellow  │  │ black (GND bus)              │
+  │ to fan  │  │  ├── to fan pin 1            │
+  │ pin 2   │  │  └── jumper to Pi pin 20     │
+  └─────────┘  └──────────────────────────────┘
+
+  ┌──────────────────────┐    ┌───────────────────────┐
+  │ blue (PWM)           │    │ green (tach)           │
+  │ fan pin 4            │    │ fan pin 3              │
+  │  └── Pi pin 12       │    │  └── Pi pin 18         │
+  │      (GPIO18)        │    │      (GPIO24)          │
+  └──────────────────────┘    └───────────────────────┘
+
+                    ┌────────────────────┐
+                    │ 4-pin socket       │
+                    │ (plugs into fan)   │
+                    └────────────────────┘
+```
+
+> **TIP:** Test the harness with the LED simulator (section 1 of the Debugging Guide) before connecting the fan. Verify: (1) 12V between fan pin 1 and pin 2, (2) PWM waveform on pin 4, (3) ground bond continuity between Pi GND and 12V adapter GND.
+
+### 6.3 Wiring Diagram
 
 ![Wiring diagram showing Pi Zero W, Arctic P12 fan, 12V adapter, and USB charger connections](media/image1.png)
 

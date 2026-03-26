@@ -4,7 +4,43 @@ Bench-testing and instrumentation techniques for the rack fan controller. Use th
 
 ## 0. Pi Zero W GPIO Pinout Reference
 
-From `pinout` on the actual Pi (rev 1.1, BCM2835). The four pins used by this project are marked.
+From `pinout` on the actual Pi Zero W (rev 1.1, BCM2835).
+
+### Board orientation — finding pin 1
+
+Pin 1 is at the **SD card end** of the header, on the **inner row** (closest to the board edge with the SD slot). The camera (CSI) connector is at the opposite end.
+
+```text
+  Board top view — components facing up, SD card slot on left
+
+  SD card                                            Camera (CSI)
+  slot                                               connector
+   ←                                                          →
+
+  ,--oooooooooooooooooooo---.
+  | Pin 1                J8 |       J8 = GPIO header
+  ---+                      c|       c = camera
+   sd|       +---+          s|       s = CSI
+  ---+       |SoC|          i|
+  | hdmi     +---+  usb pwr |
+  `-|  |----------| |-| |---'
+```
+
+**Pin 1** is the first pin at the SD card end, inner row (marked `1` on the silkscreen).
+Odd pins (1, 3, 5, ...) are the inner row (board edge). Even pins (2, 4, 6, ...) are
+the outer row (toward center of board).
+
+```text
+  SD card end                          Camera end
+       │                                    │
+       ▼                                    ▼
+  ┌─ inner row (odd pins) ─────────────────────┐
+  │ (1)  (3)  (5)  (7) ... (37) (39)          │
+  │ (2)  (4)  (6)  (8) ... (38) (40)          │
+  └─ outer row (even pins) ────────────────────┘
+```
+
+### Header pinout — project pins marked
 
 ```text
                    Pi Zero W J8 Header

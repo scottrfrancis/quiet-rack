@@ -37,16 +37,16 @@ tach:
 #
 # Zone map:  <LoLo=OFF | LoLo–LO=idle | LO–HI=ramp | HI+=full | HiHi+=backup fan
 pid:
-  setpoint: 115.0          # °F — PID target; fan at idle here
+  setpoint: 122.0          # °F — PID target; vault idle cluster median
   hi: 130.0                # °F — new fan at 100%
-  lo: 115.0                # °F — new fan at idle
-  lolo: 105.0              # °F — fan OFF below this
+  lo: 122.0                # °F — new fan at idle
+  lolo: 110.0              # °F — fan OFF below this
   hihi: 135.0              # °F — old bang-bang AC fan backup threshold
   # NEGATIVE gains for cooling. simple-pid: error = setpoint - measured.
   # Negative gains invert: temp above setpoint → positive fan output.
-  kp: -6.7                 # proportional: -100/(HI-LO)
-  ki: -0.02                # integral: gentle for wide band
-  kd: -0.5                 # derivative: light damping
+  kp: -12.5                # proportional: -100/(HI-LO) = -100/8
+  ki: -0.005               # integral: very gentle — prevents windup
+  kd: -0.3                 # derivative: light damping
   output_min: 0            # PID can output 0; lolo cutoff handles off
   output_max: 100          # full speed ceiling
   sample_time: 30          # seconds between PID updates

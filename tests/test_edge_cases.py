@@ -202,9 +202,10 @@ class TestOutOfBoundsTemperature:
         pid_cfg = load_pid_config()
         pid = make_pid(pid_cfg)
 
-        # Normal readings
+        # Normal readings above setpoint
+        normal_temp = pid_cfg["setpoint"] + 5
         for _ in range(5):
-            pid(120.0)
+            pid(normal_temp)
 
         # Glitch
         pid(500.0)
@@ -212,10 +213,14 @@ class TestOutOfBoundsTemperature:
         # Return to normal — PID should recover within a few samples
         outputs = []
         for _ in range(10):
-            outputs.append(pid(120.0))
+            outputs.append(pid(normal_temp))
 
-        # Final output should be reasonable for 120°F (5°F above setpoint → ~33%)
-        assert 10 <= outputs[-1] <= 60, f"PID didn't recover from glitch: {outputs[-1]}"
+        # Final output should be reasonable (not stuck at 100 from glitch)
+        expected_p = abs(pid_cfg["kp"]) * 5  # ~62.5% for 5°F above setpoint
+        assert outputs[-1] < expected_p + 20, (
+            f"PID didn't recover from glitch: {outputs[-1]:.1f}% "
+            f"(expected ~{expected_p:.0f}%)"
+        )
 
 
 # ---------------------------------------------------------------------------

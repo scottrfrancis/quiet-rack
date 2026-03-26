@@ -28,6 +28,9 @@ def load_config(path=None):
 
 def set_fan_speed(pi_inst, pwm_gpio, pwm_freq, percent):
     """Clamp percent to 0–100, set hardware PWM duty cycle. Returns clamped value."""
+    import math
+    if math.isnan(percent) or math.isinf(percent):
+        return -1  # reject — caller should ignore
     pct = max(0, min(100, int(percent)))
     duty = pct * 10000  # pigpio: 0–1,000,000
     pi_inst.hardware_PWM(pwm_gpio, pwm_freq, duty)

@@ -42,9 +42,11 @@ pid:
   lo: 115.0                # °F — new fan at idle
   lolo: 105.0              # °F — fan OFF below this
   hihi: 135.0              # °F — old bang-bang AC fan backup threshold
-  kp: 6.7                  # proportional: 100/(HI-LO)
-  ki: 0.02                 # integral: gentle for wide band
-  kd: 0.5                  # derivative: light damping
+  # NEGATIVE gains for cooling. simple-pid: error = setpoint - measured.
+  # Negative gains invert: temp above setpoint → positive fan output.
+  kp: -6.7                 # proportional: -100/(HI-LO)
+  ki: -0.02                # integral: gentle for wide band
+  kd: -0.5                 # derivative: light damping
   output_min: 0            # PID can output 0; lolo cutoff handles off
   output_max: 100          # full speed ceiling
   sample_time: 30          # seconds between PID updates

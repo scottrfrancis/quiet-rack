@@ -47,9 +47,29 @@ def calc_rpm(pulse_count, interval):
 
 
 def on_connect(client, userdata, flags, reason_code, properties=None):
-    """MQTT on_connect — subscribe to the speed topic."""
+    """MQTT on_connect — subscribe to the speed topic.
+
+    Called on initial connect AND on every reconnect. The subscribe here
+    ensures we re-subscribe after broker restarts or network drops.
+    """
     print("MQTT connected, rc=", reason_code)
-    client.subscribe(userdata["speed_topic"])
+    if reason_code == 0 or str(reason_code) == "Success":
+        client.subscribe(userdata["speed_topic"])
+    else:
+        print(f"MQTT connect failed: {reason_code}")
+
+
+def on_disconnect(client, userdata, disconnect_flags, reason_code, properties=None):
+    """MQTT on_disconnect — log disconnection.
+
+    paho-mqtt v2 callback signature: (client, userdata, disconnect_flags, reason_code, properties).
+    paho-mqtt handles reconnection automatically (via reconnect_delay_set).
+    This callback is for logging only.
+    """
+    if reason_code == 0 or str(reason_code) == "Success":
+        print("MQTT disconnected cleanly")
+    else:
+        print(f"MQTT connection lost (rc={reason_code}), reconnecting...")
 
 
 def on_message(client, userdata, msg):
@@ -61,7 +81,7 @@ def on_message(client, userdata, msg):
             userdata["pwm_freq"],
             float(msg.payload.decode()),
         )
-    except ValueError:
+    except (ValueError, OverflowError):
         pass
 
 
@@ -115,7 +135,10 @@ def setup_mqtt(cfg, pi_inst):
     if user:
         client.username_pw_set(user, password)
     client.on_connect = on_connect
+    client.on_disconnect = on_disconnect
     client.on_message = on_message
+    # Auto-reconnect with exponential backoff: 1s initial, 120s max
+    client.reconnect_delay_set(min_delay=1, max_delay=120)
     client.connect(cfg["mqtt"]["host"], cfg["mqtt"].get("port", 1883))
     return client
 

@@ -18,6 +18,10 @@ homeassistant:
   temperature_entity: sensor.vault_temperature  # PID input sensor
   fan_speed_entity: input_number.rack_fan_speed  # PID output helper
 
+pi:
+  host: cooler.local              # Pi hostname (.local mDNS)
+  ssh_user: scott                 # SSH user (key-based, no password)
+
 gpio:
   pwm: 18                  # hardware PWM pin (GPIO18)
   tach: 24                 # tach input pin (GPIO24), set null to disable

@@ -3,10 +3,14 @@ Description=Rack Fan Controller
 After=network.target pigpiod.service
 
 [Service]
-ExecStart=/usr/bin/python3 /home/pi/fan_controller.py
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/scott/quiet-rack/.venv/bin/python3 /home/scott/quiet-rack/pi/fan_controller.py
+WorkingDirectory=/home/scott/quiet-rack
+StandardOutput=journal
+StandardError=journal
 Restart=always
 RestartSec=10
-User=pi
+User=scott
 
 [Install]
 WantedBy=multi-user.target

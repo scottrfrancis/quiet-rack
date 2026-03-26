@@ -107,9 +107,9 @@ class TestCalcRpm:
 class TestOnConnect:
     def test_subscribes_to_speed_topic(self):
         client = MagicMock()
-        userdata = {"speed_topic": "rack/fan/test/speed"}
+        userdata = {"speed_topic": "rack/fan/test/speed", "status_topic": "rack/fan/test/status"}
         on_connect(client, userdata, {}, 0)
-        client.subscribe.assert_called_once_with("rack/fan/test/speed")
+        client.subscribe.assert_called_once_with("rack/fan/test/speed", qos=1)
 
 
 # --- on_message ---

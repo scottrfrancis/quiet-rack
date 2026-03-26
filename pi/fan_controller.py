@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
-"""Rack fan PWM controller — MQTT subscriber that drives an Arctic P12 via pigpio."""
+"""Rack fan PWM controller — MQTT v5 subscriber that drives an Arctic P12 via pigpio.
+
+Connects to EMQX broker with LWT, persistent sessions, QoS 1 on speed
+commands, and automatic reconnection with exponential backoff.
+"""
 
 import pathlib
+import signal
 import sys
 import time
 
 import yaml
 import paho.mqtt.client as mqtt
+from paho.mqtt.properties import Properties
+from paho.mqtt.packettypes import PacketTypes
 
 
 def load_config(path=None):
@@ -47,14 +54,18 @@ def calc_rpm(pulse_count, interval):
 
 
 def on_connect(client, userdata, flags, reason_code, properties=None):
-    """MQTT on_connect — subscribe to the speed topic.
+    """MQTT on_connect — subscribe and publish birth message.
 
-    Called on initial connect AND on every reconnect. The subscribe here
-    ensures we re-subscribe after broker restarts or network drops.
+    Called on initial connect AND on every reconnect. Re-subscribes to
+    the speed topic and publishes "online" to the status topic (overriding
+    any retained LWT "offline" from a previous crash).
     """
     print("MQTT connected, rc=", reason_code)
     if reason_code == 0 or str(reason_code) == "Success":
-        client.subscribe(userdata["speed_topic"])
+        client.subscribe(userdata["speed_topic"], qos=1)
+        client.publish(
+            userdata["status_topic"], "online", qos=1, retain=True,
+        )
     else:
         print(f"MQTT connect failed: {reason_code}")
 
@@ -62,9 +73,8 @@ def on_connect(client, userdata, flags, reason_code, properties=None):
 def on_disconnect(client, userdata, disconnect_flags, reason_code, properties=None):
     """MQTT on_disconnect — log disconnection.
 
-    paho-mqtt v2 callback signature: (client, userdata, disconnect_flags, reason_code, properties).
-    paho-mqtt handles reconnection automatically (via reconnect_delay_set).
-    This callback is for logging only.
+    paho-mqtt v2/v5 callback. Auto-reconnect is handled by paho's
+    reconnect_delay_set. This callback is for logging only.
     """
     if reason_code == 0 or str(reason_code) == "Success":
         print("MQTT disconnected cleanly")
@@ -104,7 +114,6 @@ def setup_pigpio(cfg):
     tach_state = None
 
     if tach_gpio is not None:
-        # Use a mutable list as a counter so the callback can increment it
         tach_state = {"pulse_count": [0]}
 
         def tach_pulse(gpio, level, tick):
@@ -118,28 +127,72 @@ def setup_pigpio(cfg):
 
 
 def setup_mqtt(cfg, pi_inst):
-    """Create MQTT client, set callbacks, connect. Returns client.
+    """Create MQTT v5 client with LWT, persistent sessions, and QoS 1.
 
-    The pi_inst and config values are passed to callbacks via userdata.
+    Features:
+    - MQTT v5 protocol with EMQX
+    - Fixed client_id for persistent sessions
+    - LWT "offline" on rack/fan/status (retained, 30s will delay)
+    - Birth message "online" on connect/reconnect
+    - QoS 1 on speed subscription
+    - 30s keep-alive for fast dead-client detection
+    - Session expiry 300s — broker queues QoS 1 messages during disconnects
+    - Auto-reconnect with 1–120s exponential backoff
     """
+    status_topic = cfg["topics"].get("status", "rack/fan/status")
+
     userdata = {
         "pi_inst": pi_inst,
         "pwm_gpio": cfg["gpio"]["pwm"],
         "pwm_freq": cfg["pwm"]["frequency"],
         "speed_topic": cfg["topics"]["speed"],
+        "status_topic": status_topic,
     }
 
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, userdata=userdata)
+    client = mqtt.Client(
+        mqtt.CallbackAPIVersion.VERSION2,
+        client_id="rack-fan-controller",
+        protocol=mqtt.MQTTv5,
+        userdata=userdata,
+    )
+
+    # Credentials (optional — EMQX may use anonymous auth)
     user = cfg["mqtt"].get("user")
     password = cfg["mqtt"].get("password")
     if user:
         client.username_pw_set(user, password)
+
+    # LWT — broker publishes "offline" if we vanish ungracefully
+    will_props = Properties(PacketTypes.WILLMESSAGE)
+    will_props.WillDelayInterval = 30  # suppress LWT during brief reconnects
+    client.will_set(
+        topic=status_topic,
+        payload="offline",
+        qos=1,
+        retain=True,
+        properties=will_props,
+    )
+
+    # Callbacks
     client.on_connect = on_connect
     client.on_disconnect = on_disconnect
     client.on_message = on_message
+
     # Auto-reconnect with exponential backoff: 1s initial, 120s max
     client.reconnect_delay_set(min_delay=1, max_delay=120)
-    client.connect(cfg["mqtt"]["host"], cfg["mqtt"].get("port", 1883))
+
+    # Session expiry — broker keeps session for 5 minutes after disconnect
+    connect_props = Properties(PacketTypes.CONNECT)
+    connect_props.SessionExpiryInterval = 300
+
+    client.connect(
+        cfg["mqtt"]["host"],
+        cfg["mqtt"].get("port", 1883),
+        keepalive=30,
+        clean_start=mqtt.MQTT_CLEAN_START_FIRST_ONLY,
+        properties=connect_props,
+    )
+
     return client
 
 
@@ -149,6 +202,10 @@ def run_loop(client, cfg, tach_state):
     tach_interval = cfg.get("tach", {}).get("interval", 10)
     rpm_topic = cfg["topics"]["rpm"]
 
+    # RPM messages expire after 30s — prevents stale readings
+    rpm_props = Properties(PacketTypes.PUBLISH)
+    rpm_props.MessageExpiryInterval = 30
+
     client.loop_start()
 
     while True:
@@ -157,11 +214,27 @@ def run_loop(client, cfg, tach_state):
             count = tach_state["pulse_count"][0]
             tach_state["pulse_count"][0] = 0
             rpm = calc_rpm(count, tach_interval)
-            client.publish(rpm_topic, round(rpm))
+            client.publish(rpm_topic, round(rpm), qos=0, properties=rpm_props)
 
 
 if __name__ == "__main__":
     cfg = load_config()
     pi_inst, tach_state = setup_pigpio(cfg)
     client = setup_mqtt(cfg, pi_inst)
+
+    # Graceful shutdown — set fan to 0, publish offline, disconnect
+    def shutdown(signum, frame):
+        print(f"Shutdown (signal {signum})")
+        client.publish(
+            cfg["topics"].get("status", "rack/fan/status"),
+            "offline", qos=1, retain=True,
+        )
+        set_fan_speed(pi_inst, cfg["gpio"]["pwm"], cfg["pwm"]["frequency"], 0)
+        client.disconnect()
+        pi_inst.stop()
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, shutdown)
+    signal.signal(signal.SIGINT, shutdown)
+
     run_loop(client, cfg, tach_state)

@@ -41,6 +41,7 @@ def make_userdata(mock_pi):
         "pwm_gpio": PWM_GPIO,
         "pwm_freq": PWM_FREQ,
         "speed_topic": "rack/fan/test/speed",
+        "status_topic": "rack/fan/test/status",
     }
 
 
@@ -90,13 +91,13 @@ class TestReconnection:
         # Simulate first connect
         on_connect(client, userdata, {}, 0)
         assert client.subscribe.call_count == 1
-        client.subscribe.assert_called_with("rack/fan/test/speed")
+        client.subscribe.assert_called_with("rack/fan/test/speed", qos=1)
 
         # Simulate reconnect — on_connect fires again
         client.reset_mock()
         on_connect(client, userdata, {}, 0)
         assert client.subscribe.call_count == 1
-        client.subscribe.assert_called_with("rack/fan/test/speed")
+        client.subscribe.assert_called_with("rack/fan/test/speed", qos=1)
 
     def test_on_connect_with_failure_rc(self, mock_pi):
         """on_connect with non-zero rc should not subscribe."""

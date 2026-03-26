@@ -1,9 +1,10 @@
 # MQTT entities for the rack fan controller.
-# Add these to your HA mqtt.yaml (under the existing sensor: and as a new number: key).
+# Add these to your HA mqtt.yaml.
 #
 # Site-specific values from pi/config.yaml:
-#   state_topic   → topics.rpm
-#   command_topic  → topics.speed
+#   state_topic      → topics.rpm
+#   command_topic    → topics.speed
+#   availability     → topics.status
 
 # Add under mqtt: sensor:
 #  - name: "Rack Fan RPM"
@@ -11,8 +12,20 @@
 #    state_topic: "rack/fan/rpm"
 #    unit_of_measurement: "RPM"
 #    icon: mdi:fan
+#    availability_topic: "rack/fan/status"
+#    payload_available: "online"
+#    payload_not_available: "offline"
 
-# Add as mqtt: number:
+# Add under mqtt: binary_sensor:
+#  - name: "Rack Fan Controller"
+#    unique_id: rack_fan_controller_status
+#    state_topic: "rack/fan/status"
+#    payload_on: "online"
+#    payload_off: "offline"
+#    device_class: connectivity
+#    icon: mdi:raspberry-pi
+
+# Add under mqtt: number:
 #  - name: "Rack Fan Speed"
 #    unique_id: rack_fan_speed_mqtt
 #    command_topic: "rack/fan/speed"
@@ -20,3 +33,4 @@
 #    max: 100
 #    step: 5
 #    retain: true
+#    qos: 1

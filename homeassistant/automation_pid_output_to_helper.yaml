@@ -1,0 +1,24 @@
+# Copies PID controller output to input_number.rack_fan_speed.
+# Fires on PID state change AND every 30s (time-pattern fallback
+# ensures the helper stays in sync even when state triggers don't fire).
+#
+# Site-specific values from pi/config.yaml:
+#   PID output entity  → sensor.rack_fan_pid_pid_output
+#   helper entity      → homeassistant.fan_speed_entity
+alias: Rack Fan PID Output to Helper
+triggers:
+- trigger: state
+  entity_id:
+  - sensor.rack_fan_pid_pid_output
+- trigger: time_pattern
+  seconds: /30
+conditions:
+- condition: template
+  value_template: "{{ states('sensor.rack_fan_pid_pid_output') not in ['unknown', 'unavailable'] }}"
+actions:
+- action: input_number.set_value
+  target:
+    entity_id: input_number.rack_fan_speed
+  data:
+    value: "{{ states('sensor.rack_fan_pid_pid_output') | float(0) | round(0) }}"
+mode: single

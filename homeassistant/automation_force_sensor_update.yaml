@@ -1,0 +1,16 @@
+# Forces the Synology temperature sensor to refresh every 5 minutes.
+# Works around the default ~15 minute polling interval so the PID
+# controller gets fresh data.
+#
+# Site-specific values from pi/config.yaml:
+#   entity_id → homeassistant.temperature_entity
+alias: Rack Fan Force Sensor Update
+triggers:
+- trigger: time_pattern
+  minutes: /5
+conditions: []
+actions:
+- action: homeassistant.update_entity
+  target:
+    entity_id: sensor.vault_temperature
+mode: single

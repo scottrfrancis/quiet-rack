@@ -1,17 +1,20 @@
-# Site-specific values — get from pi/config.yaml:
-#   fan_speed entity  → homeassistant.fan_speed_entity
-#   notify service    → replace YOUR_PHONE with your mobile_app device name
+# Alert if fan RPM drops below 100 while speed is commanded above 20%.
+#
+# Site-specific values from pi/config.yaml:
+#   fan_speed entity → homeassistant.fan_speed_entity
 alias: Rack Fan Failure Alert
-trigger:
-  - platform: numeric_state
-    entity_id: sensor.rack_fan_rpm
-    below: 100
-    for: '00:01:00'
-condition:
-  - condition: numeric_state
-    entity_id: input_number.rack_fan_speed
-    above: 20
-action:
-  - service: notify.mobile_app_YOUR_PHONE
-    data:
-      message: 'Rack fan RPM dropped below 100 while speed > 20%'
+triggers:
+- trigger: numeric_state
+  entity_id: sensor.rack_fan_rpm
+  below: 100
+  for: '00:01:00'
+conditions:
+- condition: numeric_state
+  entity_id: input_number.rack_fan_speed
+  above: 20
+actions:
+- action: persistent_notification.create
+  data:
+    title: Rack Fan Failure
+    message: 'Rack fan RPM dropped below 100 while speed > 20%'
+mode: single

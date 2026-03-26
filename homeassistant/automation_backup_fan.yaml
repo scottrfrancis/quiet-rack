@@ -1,0 +1,36 @@
+# Old AC fan backup automations — updated thresholds for dual-fan strategy.
+# The old AC fan only kicks in as emergency backup above HiHi (135°F).
+#
+# Site-specific values from pi/config.yaml:
+#   hi   → pid.hi   (130°F — backup fan off)
+#   hihi → pid.hihi (135°F — backup fan on)
+#   temperature entity → homeassistant.temperature_entity
+#   device_id / entity_id → your smart plug (site-specific)
+
+# --- Backup fan OFF when temp drops below HI ---
+- alias: Garage rack backup fan off (HI)
+  triggers:
+  - trigger: numeric_state
+    entity_id:
+    - sensor.vault_temperature
+    below: 130
+  actions:
+  - type: turn_off
+    device_id: YOUR_SMART_PLUG_DEVICE_ID
+    entity_id: YOUR_SMART_PLUG_ENTITY_ID
+    domain: switch
+  mode: single
+
+# --- Backup fan ON when temp exceeds HiHi ---
+- alias: Garage rack backup fan on (HiHi)
+  triggers:
+  - trigger: numeric_state
+    entity_id:
+    - sensor.vault_temperature
+    above: 135
+  actions:
+  - type: turn_on
+    device_id: YOUR_SMART_PLUG_DEVICE_ID
+    entity_id: YOUR_SMART_PLUG_ENTITY_ID
+    domain: switch
+  mode: single

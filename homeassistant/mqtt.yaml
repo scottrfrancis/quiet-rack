@@ -1,13 +1,22 @@
-# Add to configuration.yaml under the mqtt: key
-mqtt:
-  sensor:
-    - name: 'Rack Fan RPM'
-      state_topic: 'rack/fan/rpm'
-      unit_of_measurement: 'RPM'
-  number:
-    - name: 'Rack Fan Speed'
-      command_topic: 'rack/fan/speed'
-      min: 0
-      max: 100
-      step: 5
-      retain: true  # fan resumes last speed on Pi reboot
+# MQTT entities for the rack fan controller.
+# Add these to your HA mqtt.yaml (under the existing sensor: and as a new number: key).
+#
+# Site-specific values from pi/config.yaml:
+#   state_topic   → topics.rpm
+#   command_topic  → topics.speed
+
+# Add under mqtt: sensor:
+#  - name: "Rack Fan RPM"
+#    unique_id: rack_fan_rpm
+#    state_topic: "rack/fan/rpm"
+#    unit_of_measurement: "RPM"
+#    icon: mdi:fan
+
+# Add as mqtt: number:
+#  - name: "Rack Fan Speed"
+#    unique_id: rack_fan_speed_mqtt
+#    command_topic: "rack/fan/speed"
+#    min: 0
+#    max: 100
+#    step: 5
+#    retain: true

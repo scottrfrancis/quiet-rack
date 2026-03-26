@@ -1,13 +1,35 @@
-# Site-specific values — get from pi/config.yaml:
+# Bridges PID output to MQTT for the Pi Zero W fan controller.
+# Fires on helper state change AND every 30s (time-pattern fallback
+# ensures MQTT stays current even when HA state triggers don't fire).
+# Applies LoLo cutoff: fan OFF below pid.lolo (see pi/config.yaml).
+#
+# Site-specific values from pi/config.yaml:
 #   entity_id  → homeassistant.fan_speed_entity
 #   topic      → topics.speed
+#   lolo       → pid.lolo
+#   temp entity → homeassistant.temperature_entity
 alias: Rack Fan PID to MQTT
-trigger:
-  - platform: state
-    entity_id: input_number.rack_fan_speed
-condition: []
-action:
-  - service: mqtt.publish
+triggers:
+- trigger: state
+  entity_id:
+  - input_number.rack_fan_speed
+- trigger: time_pattern
+  seconds: /30
+conditions: []
+actions:
+- choose:
+  - conditions:
+    - condition: numeric_state
+      entity_id: sensor.vault_temperature
+      below: 105
+    sequence:
+    - action: mqtt.publish
+      data:
+        topic: rack/fan/speed
+        retain: true
+        payload: '0'
+  default:
+  - action: mqtt.publish
     data:
       topic: rack/fan/speed
       retain: true

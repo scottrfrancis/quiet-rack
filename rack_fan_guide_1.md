@@ -146,7 +146,119 @@ Tach pulse → GPIO24 → RPM calculation
 rack/fan/rpm → HA sensor.rack_fan_rpm
 ```
 
-### 5.2 Why PID in HA, not on the Pi
+### 5.2 MQTT v5 Reliability Architecture
+
+The MQTT layer is the critical link between Home Assistant and the Pi. A dropped
+speed command means the fan runs at the wrong speed; a silent Pi death means HA
+has no idea the controller is offline. We use MQTT v5 features with EMQX to
+make this link resilient to broker restarts, WiFi drops, and Pi reboots.
+
+#### Topics and message types
+
+| Topic | Direction | QoS | Retained | Expiry | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| `rack/fan/speed` | HA → Pi | 1 | Yes | — | Fan speed command (0–100%) |
+| `rack/fan/rpm` | Pi → HA | 0 | No | 30s | Tach telemetry (informational) |
+| `rack/fan/status` | Pi → broker | 1 | Yes | — | Controller availability (online/offline) |
+
+**QoS rationale:** Speed commands use QoS 1 (at-least-once) because a dropped
+command leaves the fan at the wrong speed until the next 30-second HA publish
+cycle. RPM telemetry uses QoS 0 because a missed reading is replaced 10 seconds
+later. The status topic uses QoS 1 because availability signals must be reliable.
+
+#### Last Will and Testament (LWT)
+
+When the Pi connects to the broker, it registers a Last Will message:
+
+```yaml
+topic: rack/fan/status
+payload: "offline"
+qos: 1
+retain: true
+will_delay_interval: 30s
+```
+
+If the Pi disconnects ungracefully (power loss, kernel panic, WiFi failure,
+pigpiod crash), the broker waits 30 seconds (will delay), then publishes
+"offline" to the status topic. The 30-second delay prevents false alarms
+during brief WiFi blips or systemd restarts (`RestartSec=10`).
+
+On every successful connect/reconnect, the Pi publishes a **birth message**:
+
+```yaml
+topic: rack/fan/status
+payload: "online"
+qos: 1
+retain: true
+```
+
+This overwrites any retained "offline" from a previous crash. New subscribers
+(HA restarting, MQTT Explorer) immediately see the current state.
+
+#### Session persistence
+
+The Pi connects with a fixed `client_id` ("rack-fan-controller") and a 300-second
+session expiry. If the Pi disconnects for up to 5 minutes, the broker queues any
+QoS 1 speed commands. On reconnect, the queued messages are delivered in order
+and the fan reaches the correct speed.
+
+For longer outages (>5 minutes), the session expires and the queue is discarded.
+The retained speed message on `rack/fan/speed` still delivers the most recent
+command — the session queue is belt-and-suspenders.
+
+#### Reconnection strategy
+
+The Pi uses paho-mqtt's automatic reconnection with exponential backoff:
+
+- Initial delay: 1 second
+- Maximum delay: 120 seconds
+- On reconnect: `on_connect` fires, re-subscribes to the speed topic, publishes birth message
+
+Combined with systemd's `Restart=always` and `RestartSec=10`, the fan controller
+recovers from any failure mode:
+
+| Failure | Recovery path | Time to recover |
+| --- | --- | --- |
+| WiFi blip (<30s) | paho auto-reconnect | 1–30s, LWT suppressed |
+| WiFi down (>30s) | paho backoff + LWT fires | 30s–2min, HA shows offline |
+| Pi reboot | systemd restart + MQTT reconnect | ~20s (boot + connect) |
+| Broker restart | paho reconnect + re-subscribe | 1–30s |
+| fan_controller.py crash | systemd restart (10s) + reconnect | ~15s |
+| pigpiod crash | fan_controller crashes → systemd restart | ~15s |
+
+#### Keep-alive
+
+The keep-alive interval is 30 seconds. With MQTT's 1.5x multiplier, the broker
+declares the client dead after 45 seconds of silence. During normal operation,
+RPM publishes every 10 seconds act as heartbeats; PINGREQs are only sent when
+tach is disabled.
+
+#### HA entities driven by MQTT reliability
+
+| Entity | Type | Driven by | Purpose |
+| --- | --- | --- | --- |
+| `binary_sensor.rack_fan_controller` | binary_sensor | `rack/fan/status` | Dashboard: green=online, red=offline |
+| `sensor.rack_fan_rpm` | sensor | `rack/fan/rpm` + availability from status | Shows "unavailable" when controller offline |
+
+The RPM sensor uses `availability_topic: rack/fan/status` so it shows
+"unavailable" instead of a stale "0 RPM" when the controller is dead. This
+prevents the fan failure alert from firing on a known-offline controller.
+
+#### Graceful shutdown
+
+When `fan-controller.service` receives SIGTERM (from `systemctl stop` or
+`systemctl restart`), the signal handler:
+
+1. Publishes "offline" to `rack/fan/status` (retained, QoS 1)
+2. Sets fan speed to 0% (PWM duty = 0)
+3. Calls `client.disconnect()` (clean disconnect suppresses the LWT)
+4. Calls `pi.stop()` (releases pigpio resources)
+5. Exits cleanly
+
+This ensures the fan stops and HA knows the controller is offline, even
+during a planned restart. The LWT only fires for *unplanned* disconnections.
+
+### 5.3 Why PID in HA, not on the Pi
 
 Running the PID controller in Home Assistant rather than on the Pi Zero W has several advantages:
 

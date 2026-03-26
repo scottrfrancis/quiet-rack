@@ -114,13 +114,23 @@ def setup_pigpio(cfg):
     tach_state = None
 
     if tach_gpio is not None:
-        tach_state = {"pulse_count": [0]}
+        # Min pulse interval for debounce: 5ms (5000µs).
+        # At max RPM (1800), tach is 60Hz → 16.7ms between pulses.
+        # PWM crosstalk at 25kHz → 40µs between edges.
+        # The 5ms filter rejects PWM noise while passing all real tach pulses.
+        MIN_PULSE_US = 5000
+        tach_state = {"pulse_count": [0], "last_tick": [0]}
 
         def tach_pulse(gpio, level, tick):
-            tach_state["pulse_count"][0] += 1
+            dt = pigpio.tickDiff(tach_state["last_tick"][0], tick)
+            if dt >= MIN_PULSE_US:
+                tach_state["pulse_count"][0] += 1
+                tach_state["last_tick"][0] = tick
 
         pi_inst.set_mode(tach_gpio, pigpio.INPUT)
         pi_inst.set_pull_up_down(tach_gpio, pigpio.PUD_UP)
+        # Hardware glitch filter: ignore edges shorter than 100µs
+        pi_inst.set_glitch_filter(tach_gpio, 100)
         pi_inst.callback(tach_gpio, pigpio.FALLING_EDGE, tach_pulse)
 
     return pi_inst, tach_state

@@ -32,6 +32,13 @@ pwm:
 tach:
   interval: 10             # seconds between RPM reports
 
+influxdb:
+  host: 192.168.4.6              # InfluxDB v2 host
+  port: 8086
+  org: myorg
+  bucket: homeassistant
+  # token: YOUR_INFLUXDB_TOKEN   # gitignored in config.yaml
+
 # PID tuning — see docs/pid_tuning.md for methodology.
 # Thresholds derived from vault temp history and bang-bang setpoints.
 #

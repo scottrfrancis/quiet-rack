@@ -2,6 +2,48 @@
 
 Bench-testing and instrumentation techniques for the rack fan controller. Use these before installing in the cabinet — it's much easier to probe signals on a desk than inside a 12U enclosure.
 
+## 0. Pi Zero W GPIO Pinout Reference
+
+From `pinout` on the actual Pi (rev 1.1, BCM2835). The four pins used by this project are marked.
+
+```text
+                   Pi Zero W J8 Header
+                   (active pins marked)
+
+           3V3  (1)  (2)  5V
+         GPIO2  (3)  (4)  5V
+         GPIO3  (5)  (6)  GND  ◄── scope GND clip / LED cathode
+         GPIO4  (7)  (8)  GPIO14
+           GND  (9)  (10) GPIO15
+        GPIO17 (11)  (12) GPIO18 ◄── PWM OUTPUT (fan pin 4 / scope CH1 / LED anode)
+        GPIO27 (13)  (14) GND
+        GPIO22 (15)  (16) GPIO23
+           3V3 (17)  (18) GPIO24 ◄── TACH INPUT (fan pin 3 / scope CH2)
+        GPIO10 (19)  (20) GND    ◄── GND bond to 12V supply
+         GPIO9 (21)  (22) GPIO25
+        GPIO11 (23)  (24) GPIO8
+           GND (25)  (26) GPIO7
+         GPIO0 (27)  (28) GPIO1
+         GPIO5 (29)  (30) GND
+         GPIO6 (31)  (32) GPIO12
+        GPIO13 (33)  (34) GND
+        GPIO19 (35)  (36) GPIO16
+        GPIO26 (37)  (38) GPIO20
+           GND (39)  (40) GPIO21
+```
+
+### Pin assignments
+
+| Function | GPIO | Physical pin | Connects to |
+| --- | --- | --- | --- |
+| **PWM output** | GPIO18 | Pin 12 | Fan pin 4 (blue), scope CH1, or LED anode |
+| **Tach input** | GPIO24 | Pin 18 | Fan pin 3 (green), scope CH2 |
+| **GND** | — | Pin 6, 9, 14, 20, 25, 30, 34, or 39 | Fan pin 1, 12V supply GND, scope ground clip |
+
+> **TIP:** Pin 6 (GND) is directly adjacent to pin 12 (GPIO18) — convenient for connecting the LED circuit or scope probe. Pin 20 (GND) is directly adjacent to pin 18 (GPIO24) — convenient for the tach probe. Use pin 20 for the 12V supply GND bond to keep wires short.
+
+For the interactive version with detailed pin descriptions, see [pinout.xyz](https://pinout.xyz/) (CC BY-SA 4.0, Gadgetoid).
+
 ## 1. LED Fan Simulator
 
 An LED + resistor on the PWM pin provides a visual proxy for fan speed during bench testing. No fan, no 12V supply needed — just the Pi.

@@ -44,6 +44,109 @@ From `pinout` on the actual Pi (rev 1.1, BCM2835). The four pins used by this pr
 
 For the interactive version with detailed pin descriptions, see [pinout.xyz](https://pinout.xyz/) (CC BY-SA 4.0, Gadgetoid).
 
+## 0.5. Arctic P12 Fan Connector Wiring
+
+The Arctic P12 PWM has **two connectors** — this is the most common source of wiring confusion.
+
+### Identifying the connectors
+
+```text
+                 Arctic P12 PWM Fan
+          ┌──────────────────────────────┐
+          │                              │
+          │         (fan blades)         │
+          │                              │
+          └──────┬───────────┬───────────┘
+                 │           │
+         ┌───────┴──┐  ┌────┴─────┐
+         │ 4-pin    │  │ 3-pin    │
+         │ SOCKET   │  │ PLUG     │
+         │ (female) │  │ (male)   │
+         │          │  │          │
+         │ USE THIS │  │ IGNORE   │
+         └──────────┘  └──────────┘
+          Input from    PST daisy-chain
+          controller    output to next fan
+```
+
+- **4-pin socket (female):** This is the **input** — connect this to the Pi. It carries power, PWM, and tach.
+- **3-pin plug (male):** This is the **PST daisy-chain output** for connecting a second Arctic fan in series. It passes power and PWM but **not tach**. Leave it disconnected.
+
+### 4-pin socket pinout (Intel 4-wire PWM standard)
+
+Looking at the socket face-on, **latch/clip on top, pin 1 is far left:**
+
+```text
+         latch/clip
+         ┌───┴───┐
+    ┌────┤       ├────┐
+    │  1 │ 2 │ 3 │ 4  │
+    └────┴───┴───┴────┘
+     GND  12V  Tach PWM
+     BLK  YEL  GRN  BLU
+```
+
+| Pin | Signal | Wire color | Connects to | Notes |
+| --- | --- | --- | --- | --- |
+| 1 | GND | Black | 12V adapter GND + Pi GND (shared) | Common ground bond is critical |
+| 2 | +12V | Yellow | 12V adapter positive | 0.08A draw |
+| 3 | Tach | Green | Pi GPIO24 (pin 18) | Open-drain, needs pull-up |
+| 4 | PWM | Blue | Pi GPIO18 (pin 12) | 25kHz, 3.3V from Pi works in practice |
+
+### 3-pin PST plug (ignore for this project)
+
+The PST plug has 4 positions but only 3 pins populated — **pin 3 (tach) is empty:**
+
+```text
+    ┌────┬───┬───┬────┐
+    │  1 │ 2 │ x │ 4  │
+    └────┴───┴───┴────┘
+     GND  12V  ∅   PWM
+```
+
+This prevents tach signal collision when daisy-chaining fans. Only the first fan reports RPM.
+
+### Tach signal details
+
+The tach output is **open-drain** (the fan pulls the line LOW, it does not drive HIGH):
+
+- **Pull-up required:** the Pi's internal pull-up on GPIO24 provides this (`pigpio.PUD_UP` ≈ 50kΩ to 3.3V). For a stronger signal, add an external **4.7kΩ resistor to 3.3V**.
+- **2 pulses per revolution** (standard for all PC fans)
+- **Signal frequency at various speeds:**
+
+| RPM | Tach frequency | Period |
+| --- | --- | --- |
+| 200 (minimum) | 6.7 Hz | 150 ms |
+| 600 | 20 Hz | 50 ms |
+| 1000 | 33 Hz | 30 ms |
+| 1800 (maximum) | 60 Hz | 17 ms |
+
+- **Output LOW:** ≤ 0.4V (sinks up to 5 mA)
+- **Output HIGH:** determined by pull-up (3.3V with Pi internal pull-up)
+
+### PWM input details
+
+- **Frequency:** 25 kHz (acceptable: 21–28 kHz)
+- **Logic levels per Intel spec:** LOW ≤ 0.8V, HIGH ≥ 3.5V
+- **3.3V from Pi:** technically below the 3.5V spec minimum, but works reliably in practice with the Arctic P12. If you have issues, add a 3.3V→5V level shifter.
+- **Floating/disconnected:** fan runs at **full speed (1800 RPM)**. This is a safety behavior — no PWM signal = maximum cooling.
+
+> **WARNING:** If the fan runs at full speed and ignores PWM commands, check: (1) the ground bond between Pi and 12V supply exists, (2) the PWM wire is on **pin 4** (blue), not pin 3 (green), and (3) the 4-pin socket is fully seated on all 4 pins.
+
+### Wiring reference (all connections)
+
+```text
+12V Adapter (+) ─────────── Fan Pin 2 (yellow)
+12V Adapter GND ──┬──────── Fan Pin 1 (black)
+                  │
+Pi GND (pin 20) ──┘         ◄── ground bond (critical!)
+
+Pi GPIO18 (pin 12) ──────── Fan Pin 4 (blue)    PWM control
+Pi GPIO24 (pin 18) ──────── Fan Pin 3 (green)   Tach sense
+```
+
+Source: Intel 4-Wire PWM Controlled Fans specification, revision 1.3 (September 2005).
+
 ## 1. LED Fan Simulator
 
 An LED + resistor on the PWM pin provides a visual proxy for fan speed during bench testing. No fan, no 12V supply needed — just the Pi.

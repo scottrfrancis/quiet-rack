@@ -169,6 +169,39 @@ The tach output is **open-drain** (the fan pulls the line LOW, it does not drive
 
 > **WARNING:** If the fan runs at full speed and ignores PWM commands, check: (1) the ground bond between Pi and 12V supply exists, (2) the PWM wire is on **pin 4** (blue), not pin 3 (green), and (3) the 4-pin socket is fully seated on all 4 pins.
 
+### Fan speed is continuous, but the dashboard looks stepped
+
+The Arctic P12 PWM accepts **any** duty cycle from 0–100% and produces a
+proportional RPM anywhere in its ~200–1800 RPM range. It is not a multi-speed
+fan — the speed control is fully continuous and analog.
+
+However, the dashboard RPM will appear to jump in discrete steps. This is not
+a fan limitation — it's sensor quantization propagating through the PID:
+
+1. The Synology temperature sensor has **1°C resolution** (1.8°F steps in Fahrenheit)
+2. With Kp = -12.5, each 1.8°F step produces a **22.5% jump** in PID output (12.5 × 1.8)
+3. The bridge automation rounds to integer percent (`| int`)
+
+The result is approximately **6 distinct speed levels** across the ramp band:
+
+| Temp (°C → °F) | PID output | Effective RPM | What you see on the scope |
+| --- | --- | --- | --- |
+| 50.0°C → 122.0°F | 0% | 0 | No waveform |
+| 51.0°C → 123.8°F | 22% | ~470 | Narrow pulses, ~22% duty |
+| 52.0°C → 125.6°F | 45% | ~980 | ~45% duty |
+| 53.0°C → 127.4°F | 67% | ~1330 | ~67% duty |
+| 54.0°C → 129.2°F | 90% | ~1660 | Nearly solid high |
+| 55.0°C → 131.0°F | 100% | 1800 | Solid 3.3V (100% duty) |
+
+Between these quantized levels, the fan could run at any speed — the hardware
+supports it. The limiting factor is the temperature sensor's 1°C granularity.
+A sensor with 0.1°C resolution would give ~60 speed levels across the same band.
+
+On the oscilloscope, you'll see the duty cycle change in jumps when the
+temperature crosses a 1°C boundary, then hold steady until the next boundary.
+The 25kHz PWM frequency itself is constant — only the duty cycle (high-time
+proportion) changes.
+
 ### Wiring reference (all connections)
 
 ```text

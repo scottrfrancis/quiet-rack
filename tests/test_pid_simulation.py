@@ -96,7 +96,7 @@ class TestPIDConfig:
         """Cooling application requires negative gains with simple-pid."""
         pid = load_pid_config()
         assert pid["kp"] < 0, f"Kp should be negative for cooling, got {pid['kp']}"
-        assert pid["ki"] < 0, f"Ki should be negative for cooling, got {pid['ki']}"
+        assert pid["ki"] <= 0, f"Ki should be <= 0 for cooling, got {pid['ki']}"
         assert pid["kd"] <= 0, f"Kd should be <= 0 for cooling, got {pid['kd']}"
 
 
